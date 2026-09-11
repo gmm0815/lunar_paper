@@ -58,6 +58,8 @@ def get_horizon_mask(target_lat, target_lon, dem_basename,
         raise ValueError(
             f"Target ({target_lat}, {target_lon}) is out of DEM bounds or nodata"
         )
+    print(f"h_target at ({target_lat}, {target_lon}): {h_target:.1f} m  "
+          f"- sanity check this against a known reference elevation")
 
     horizon_angles = {}
 

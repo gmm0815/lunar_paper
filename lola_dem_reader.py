@@ -192,3 +192,34 @@ class LunarDEM:
             out[in_chunk] = chunk_arr[local_rows, cols[in_chunk]]
 
         return out
+
+
+if __name__ == "__main__":
+    # Quick command-line verification tool:
+    #   python lola_dem_reader.py <basename> <lat> <lon>
+    # Prints the elevation at that coordinate, plus the row/col it mapped
+    # to and some basic stats about the loaded grid - useful for sanity
+    # checking preprocessing output against a known reference elevation
+    # (e.g. a value you already know from QGIS, the original GeoTIFF, or
+    # a published crater/site elevation).
+    import sys
+
+    if len(sys.argv) != 4:
+        print("Usage: python lola_dem_reader.py <basename> <lat> <lon>")
+        sys.exit(1)
+
+    basename = sys.argv[1]
+    lat = float(sys.argv[2])
+    lon = float(sys.argv[3])
+
+    dem = LunarDEM(basename)
+
+    col, row = dem._lonlat_to_colrow(lon, lat)
+    elevation = dem.sample(lon, lat)
+
+    print(f"Grid shape: {dem.shape}  (chunked: {dem.chunked})")
+    if dem.chunked:
+        print(f"Number of chunks: {len(dem.chunks)}")
+    print(f"lon={lon}, lat={lat}  ->  row={row}, col={col}")
+    print(f"Elevation: {elevation} m" if elevation is not None
+          else "Elevation: None (out of bounds or nodata)")
