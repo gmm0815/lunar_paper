@@ -1,0 +1,29 @@
+{
+  "transform": [
+    1066.0552884,
+    0.0,
+    -5458203.076608,
+    0.0,
+    -1066.0552884,
+    2729101.538304
+  ],
+  "shape": [
+    5120,
+    10240
+  ],
+  "dtype": "float32",
+  "nodata": "nan",
+  "bounds": {
+    "left": -5458203.076608,
+    "bottom": -2729101.538304,
+    "right": 5458203.076608,
+    "top": 2729101.538304
+  },
+  "crs_wkt": "PROJCS[\"SimpleCylindrical Moon\",GEOGCS[\"GCS_Moon\",DATUM[\"D_Moon\",SPHEROID[\"Moon\",1737400,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+  "source_file": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+  "scale_applied": 0.5,
+  "offset_applied": 0.0,
+  "decimation_factor": 9,
+  "approx_resolution_m": 1066.0552884,
+  "resampling_method": "manual_stride_nearest"
+}
