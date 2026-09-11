@@ -25,5 +25,63 @@
   "offset_applied": 0.0,
   "decimation_factor": 9,
   "approx_resolution_m": 1066.0552884,
-  "resampling_method": "manual_stride_nearest"
+  "resampling_method": "nearest",
+  "rows_per_chunk": 488,
+  "chunks": [
+    {
+      "file": "ldem_1km_part000.npy",
+      "row_start": 0,
+      "row_end": 488
+    },
+    {
+      "file": "ldem_1km_part001.npy",
+      "row_start": 488,
+      "row_end": 976
+    },
+    {
+      "file": "ldem_1km_part002.npy",
+      "row_start": 976,
+      "row_end": 1464
+    },
+    {
+      "file": "ldem_1km_part003.npy",
+      "row_start": 1464,
+      "row_end": 1952
+    },
+    {
+      "file": "ldem_1km_part004.npy",
+      "row_start": 1952,
+      "row_end": 2440
+    },
+    {
+      "file": "ldem_1km_part005.npy",
+      "row_start": 2440,
+      "row_end": 2928
+    },
+    {
+      "file": "ldem_1km_part006.npy",
+      "row_start": 2928,
+      "row_end": 3416
+    },
+    {
+      "file": "ldem_1km_part007.npy",
+      "row_start": 3416,
+      "row_end": 3904
+    },
+    {
+      "file": "ldem_1km_part008.npy",
+      "row_start": 3904,
+      "row_end": 4392
+    },
+    {
+      "file": "ldem_1km_part009.npy",
+      "row_start": 4392,
+      "row_end": 4880
+    },
+    {
+      "file": "ldem_1km_part010.npy",
+      "row_start": 4880,
+      "row_end": 5120
+    }
+  ]
 }

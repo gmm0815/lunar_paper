@@ -51,10 +51,25 @@ RESAMPLING_MAP = {
     "average": Resampling.average,
 }
 
+# Target max size per output .npy chunk, so files stay uploadable through
+# GitHub's web UI (25MB hard limit) without needing Git LFS.
+#
+# IMPORTANT: GitHub's 25MB limit is decimal megabytes (1,000,000 bytes), not
+# binary mebibytes (1,048,576 bytes). Using 1024*1024 here under-shoots the
+# real limit - 24.5 "MiB" is actually ~25.69 decimal MB, which is OVER the
+# cap. Windows Explorer compounds the confusion by displaying sizes in KiB
+# but labeling the column "KB".
+#
+# Using decimal MB here, with a lower default (20MB) for real headroom
+# against rounding, the .npy header (~128 bytes, negligible but nonzero),
+# and any filesystem/transfer overhead.
+GITHUB_MAX_BYTES = int(20 * 1_000_000)
+
 
 def preprocess_dem_downsampled(input_tif_path, output_basename, factor=9,
-                                resampling="nearest"):
+                                resampling="nearest", max_chunk_mb=20):
     resampling_method = RESAMPLING_MAP[resampling]
+    max_chunk_bytes = int(max_chunk_mb * 1_000_000)  # decimal MB, not MiB
 
     with rasterio.open(input_tif_path) as dem:
         n_rows, n_cols = dem.height, dem.width
@@ -107,7 +122,31 @@ def preprocess_dem_downsampled(input_tif_path, output_basename, factor=9,
             "right": dem.bounds.right, "top": dem.bounds.top,
         }
 
-    np.save(f"{output_basename}.npy", arr_elevation)
+    # --- Split into row-chunks so no single file exceeds GITHUB_MAX_BYTES ---
+    # (default 24.5MB, comfortably under GitHub's 25MB web-upload limit,
+    # avoiding the need for Git LFS)
+    itemsize = arr_elevation.dtype.itemsize  # 4 bytes for float32
+    row_bytes = new_cols * itemsize
+    rows_per_chunk = max(1, max_chunk_bytes // row_bytes)
+
+    chunk_manifest = []
+    part_idx = 0
+    for row_start in range(0, new_rows, rows_per_chunk):
+        row_end = min(row_start + rows_per_chunk, new_rows)
+        chunk_arr = arr_elevation[row_start:row_end, :]
+
+        chunk_filename = f"{output_basename}_part{part_idx:03d}.npy"
+        np.save(chunk_filename, chunk_arr)
+
+        chunk_bytes = chunk_arr.nbytes
+        chunk_manifest.append({
+            "file": chunk_filename,
+            "row_start": row_start,
+            "row_end": row_end,
+        })
+        print(f"  wrote {chunk_filename}  rows [{row_start}:{row_end})  "
+              f"({chunk_bytes / 1_000_000:.2f} decimal MB, {chunk_bytes} bytes)")
+        part_idx += 1
 
     meta = {
         "transform": transform,
@@ -122,12 +161,13 @@ def preprocess_dem_downsampled(input_tif_path, output_basename, factor=9,
         "decimation_factor": factor,
         "approx_resolution_m": float(new_res),
         "resampling_method": resampling,
+        "rows_per_chunk": rows_per_chunk,   # constant for all but possibly the last chunk
+        "chunks": chunk_manifest,
     }
     with open(f"{output_basename}_meta.json", "w") as f:
         json.dump(meta, f, indent=2)
 
-    print(f"\nWrote {output_basename}.npy  shape={arr_elevation.shape} dtype={arr_elevation.dtype}")
-    print(f"Wrote {output_basename}_meta.json")
+    print(f"\nWrote {len(chunk_manifest)} chunk files + {output_basename}_meta.json")
 
 
 if __name__ == "__main__":
@@ -142,10 +182,15 @@ if __name__ == "__main__":
     parser.add_argument("--resampling", choices=list(RESAMPLING_MAP.keys()),
                          default="nearest",
                          help="Resampling method (default: nearest = literal every-Nth-pixel sampling)")
+    parser.add_argument("--max_chunk_mb", type=float, default=20,
+                         help="Max size per output .npy chunk in DECIMAL MB "
+                              "(1,000,000 bytes; default 20, for real headroom "
+                              "under GitHub's 25MB decimal-MB web-upload limit)")
 
     args = parser.parse_args()
 
     preprocess_dem_downsampled(
         args.input_tif, args.output_basename,
         factor=args.factor, resampling=args.resampling,
+        max_chunk_mb=args.max_chunk_mb,
     )

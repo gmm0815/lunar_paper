@@ -1,0 +1,26 @@
+# --- LOLA / lunar DEM data files ---
+
+# Raw source rasters downloaded from NASA/PDS - large (multi-GB), never
+# needs to be in git; re-download or re-derive instead.
+*.tif
+*.tiff
+*.img
+*.lbl
+*.IMG
+*.LBL
+
+# Single-file .npy DEM outputs (e.g. from the non-chunked preprocessing
+# scripts) - these can be well over GitHub's per-file limits.
+# The chunked outputs (ldem_*_part000.npy, ldem_*_part001.npy, ...) are
+# intentionally kept - see the negation pattern below.
+*.npy
+!*_part[0-9][0-9][0-9].npy
+
+# Metadata JSON sidecars are small and always wanted - not excluded by
+# anything above, but listed here for clarity.
+# ldem_*_meta.json  (tracked)
+
+# --- Common Python housekeeping (safe to include even if unused yet) ---
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

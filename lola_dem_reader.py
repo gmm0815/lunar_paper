@@ -2,8 +2,24 @@
 lola_dem_reader.py
 
 Runtime DEM reader for closed environments - depends only on numpy and
-the standard library. Reads the .npy + _meta.json produced by
-preprocess_lola_dem.py.
+the standard library.
+
+Supports two storage layouts, chosen automatically based on what the
+metadata JSON contains:
+
+  1. Single-file:  "{basename}.npy" + "{basename}_meta.json"
+  2. Chunked:      "{basename}_part000.npy", "{basename}_part001.npy", ...
+                   + "{basename}_meta.json" (with a "chunks" manifest)
+
+Chunked mode exists so large DEMs can be split into pieces small enough
+to upload through GitHub's web UI (default target: 24.5MB/file) without
+needing Git LFS. Each chunk is a contiguous row-slice of the full grid;
+the manifest in the metadata records each chunk's file name and row
+range, and this class stitches lookups across chunks transparently.
+
+The public interface (sample / sample_many) is identical either way, so
+calling code (e.g. coordinates_to_min_el.py) doesn't need to know or
+care which layout is in use.
 """
 
 import json
@@ -28,18 +44,59 @@ class LunarDEM:
         self.bounds = self.meta["bounds"]
         self.shape = tuple(self.meta["shape"])
 
-        # mmap so the whole array isn't loaded into RAM at once
-        self.arr = np.load(f"{basename}.npy", mmap_mode="r")
+        self._basename = basename
+        self.chunked = "chunks" in self.meta
 
-        if self.arr.shape != self.shape:
-            raise ValueError(
-                f"Array shape {self.arr.shape} doesn't match metadata {self.shape}"
-            )
+        if self.chunked:
+            # chunks: list of {"file": ..., "row_start": ..., "row_end": ...}
+            # sorted by row_start (preprocessing writes them in order already,
+            # but sort defensively in case a manifest is hand-edited)
+            self.chunks = sorted(self.meta["chunks"], key=lambda c: c["row_start"])
+            self._row_starts = np.array([c["row_start"] for c in self.chunks])
+            self._row_ends = np.array([c["row_end"] for c in self.chunks])
+            self._chunk_cache = {}  # lazy-loaded mmap arrays, keyed by chunk index
+
+            total_rows = self.chunks[-1]["row_end"]
+            if total_rows != self.shape[0]:
+                raise ValueError(
+                    f"Chunk manifest covers {total_rows} rows but metadata "
+                    f"shape says {self.shape[0]}"
+                )
+        else:
+            # Single-file layout (backward compatible)
+            self.arr = np.load(f"{basename}.npy", mmap_mode="r")
+            if self.arr.shape != self.shape:
+                raise ValueError(
+                    f"Array shape {self.arr.shape} doesn't match metadata {self.shape}"
+                )
 
         # precompute the inverse-transform determinant once
         self._det = self.a * self.e - self.b * self.d
         if self._det == 0:
             raise ValueError("Affine transform is not invertible")
+
+    # --- chunk management -------------------------------------------------
+
+    def _chunk_index_for_row(self, row):
+        """Return the index into self.chunks containing global row `row`,
+        or None if out of range."""
+        if row < 0 or row >= self.shape[0]:
+            return None
+        idx = int(np.searchsorted(self._row_starts, row, side="right") - 1)
+        if idx < 0 or idx >= len(self.chunks):
+            return None
+        if row >= self._row_ends[idx]:
+            return None
+        return idx
+
+    def _get_chunk_array(self, idx):
+        """Lazily load (and cache) the mmap array for chunk `idx`."""
+        if idx not in self._chunk_cache:
+            fname = self.chunks[idx]["file"]
+            self._chunk_cache[idx] = np.load(fname, mmap_mode="r")
+        return self._chunk_cache[idx]
+
+    # --- coordinate math ----------------------------------------------------
 
     def _lonlat_to_colrow(self, lon, lat):
         """
@@ -60,6 +117,8 @@ class LunarDEM:
 
         return int(round(col)), int(round(row))
 
+    # --- public sampling API ------------------------------------------------
+
     def sample(self, lon, lat):
         """
         Return the elevation value (meters) at (lon, lat), or None if
@@ -70,7 +129,15 @@ class LunarDEM:
         if row < 0 or row >= self.shape[0] or col < 0 or col >= self.shape[1]:
             return None
 
-        val = self.arr[row, col]
+        if self.chunked:
+            idx = self._chunk_index_for_row(row)
+            if idx is None:
+                return None
+            chunk_arr = self._get_chunk_array(idx)
+            local_row = row - self.chunks[idx]["row_start"]
+            val = chunk_arr[local_row, col]
+        else:
+            val = self.arr[row, col]
 
         if np.isnan(val):
             return None
@@ -100,6 +167,28 @@ class LunarDEM:
         )
 
         out = np.full(len(coords), np.nan, dtype=np.float64)
-        out[valid] = self.arr[rows[valid], cols[valid]]
+
+        if not self.chunked:
+            out[valid] = self.arr[rows[valid], cols[valid]]
+            return out
+
+        # Chunked path: group the valid points by which chunk their row
+        # falls into, so each chunk file is only opened/read once even if
+        # many sample points land in it.
+        valid_idx = np.where(valid)[0]
+        if len(valid_idx) == 0:
+            return out
+
+        for chunk_idx, chunk in enumerate(self.chunks):
+            row_start, row_end = chunk["row_start"], chunk["row_end"]
+            in_chunk = valid_idx[
+                (rows[valid_idx] >= row_start) & (rows[valid_idx] < row_end)
+            ]
+            if len(in_chunk) == 0:
+                continue
+
+            chunk_arr = self._get_chunk_array(chunk_idx)
+            local_rows = rows[in_chunk] - row_start
+            out[in_chunk] = chunk_arr[local_rows, cols[in_chunk]]
 
         return out
