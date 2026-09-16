@@ -1,0 +1,8 @@
+copy results_10km.json results_10km_snapshot.json
+python json_to_csv.py results_10km_snapshot.json
+
+python plot_3d_point_cloud.py results_100km_snapshot.csv --show --basemap lroc_wac_mosaic.png
+
+python plot_3d_point_cloud.py results_100km_snapshot.csv --show --basemap WAC_GLOBAL_E000N0000_004P.tif
+
+python plot_3d_point_cloud.py results_10km_snapshot.csv --show --basemap WAC_GLOBAL_E000N0000_004P.tif --solid
