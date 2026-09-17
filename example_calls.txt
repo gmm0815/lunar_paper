@@ -1,8 +1,12 @@
-copy results_10km.json results_10km_snapshot.json
+copy results_25km.json results_25km_snapshot.json
 python json_to_csv.py results_10km_snapshot.json
 
 python plot_3d_point_cloud.py results_100km_snapshot.csv --show --basemap lroc_wac_mosaic.png
 
 python plot_3d_point_cloud.py results_100km_snapshot.csv --show --basemap WAC_GLOBAL_E000N0000_004P.tif
 
-python plot_3d_point_cloud.py results_10km_snapshot.csv --show --basemap WAC_GLOBAL_E000N0000_004P.tif --solid
+python plot_3d_point_cloud.py results_25km_snapshot.csv --show --basemap WAC_GLOBAL_E000N0000_016P.tif --solid
+
+python plot_3d_point_cloud.py results_25km_snapshot.csv --show --basemap WAC_GLOBAL_E000N0000_016P.tif --solid --basemap_mesh_res 360 720
+
+python plot_3d_point_cloud.py results_25km_snapshot.csv --show --basemap WAC_GLOBAL_E000N0000_016P.tif --solid --region 10 30 -15 10
