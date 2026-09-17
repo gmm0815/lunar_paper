@@ -50,7 +50,17 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from PIL import Image
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 - needed to register 3D projection
+
+# matplotlib's imread() uses Pillow under the hood, which by default refuses
+# to open very large images as a generic anti-DoS "decompression bomb"
+# safeguard - this is a blanket pixel-count check, not specific to any
+# actual problem with a file. Legitimate high-resolution lunar mosaics
+# (e.g. the 64 ppd WAC global tile) can exceed Pillow's default limit
+# despite being completely normal, known-source scientific data, so raise
+# it here rather than fighting the check on every larger basemap image.
+Image.MAX_IMAGE_PIXELS = None
 
 R_MOON_M = 1737400.0  # LOLA datum radius, meters - same constant used elsewhere in this project
 
@@ -117,7 +127,7 @@ def build_data_surface(df, color_column, exaggeration=1.0):
     return x, y, z, val_grid
 
 
-def build_textured_sphere(basemap_path, n_lat=90, n_lon=180, extent=None):
+def build_textured_sphere(basemap_path, n_lat=180, n_lon=360, extent=None):
     """
     Build a smooth sphere mesh (constant radius R_MOON_M) with facecolors
     sampled from a real lunar surface image, for side-by-side visual
@@ -217,6 +227,13 @@ def main():
                          help="Render the data as a continuous colored surface "
                               "(reconstructed from row/col grid indices) instead "
                               "of scattered points with gaps between them")
+    parser.add_argument("--basemap_mesh_res", type=int, nargs=2, default=(180, 360),
+                         metavar=("N_LAT", "N_LON"),
+                         help="Mesh resolution (n_lat, n_lon) for the basemap sphere "
+                              "(default 180 360). This controls how much of your "
+                              "source image's detail actually gets rendered - "
+                              "raise it to use more of a high-res basemap, at the "
+                              "cost of a slower plot_surface call.")
 
     args = parser.parse_args()
 
@@ -277,10 +294,14 @@ def main():
     ax_points.set_xlim(mid_x - max_range, mid_x + max_range)
     ax_points.set_ylim(mid_y - max_range, mid_y + max_range)
     ax_points.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax_points.set_box_aspect((1, 1, 1))  # force a true cube - equal xlim/ylim/zlim alone isn't enough
     ax_points.view_init(elev=args.elev, azim=args.azim)
 
     if args.basemap:
-        mx, my, mz, facecolors = build_textured_sphere(args.basemap, extent=args.extent)
+        mx, my, mz, facecolors = build_textured_sphere(
+            args.basemap, n_lat=args.basemap_mesh_res[0], n_lon=args.basemap_mesh_res[1],
+            extent=args.extent,
+        )
         ax_moon.plot_surface(
             mx, my, mz, facecolors=facecolors, rstride=1, cstride=1,
             shade=False, antialiased=False,
@@ -293,6 +314,7 @@ def main():
         ax_moon.set_xlim(-moon_range, moon_range)
         ax_moon.set_ylim(-moon_range, moon_range)
         ax_moon.set_zlim(-moon_range, moon_range)
+        ax_moon.set_box_aspect((1, 1, 1))
         ax_moon.view_init(elev=args.elev, azim=args.azim)
 
         sync_3d_views(fig, [ax_points, ax_moon])

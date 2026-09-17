@@ -24,5 +24,6 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
-"results_10km*.json" 
-"results_10km*.json" 
+results_10km*.json
+results_10km*.json 
+results_10km*.json 
